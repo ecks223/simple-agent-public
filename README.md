@@ -41,50 +41,58 @@ Any model supported by LangChain's [`init_chat_model`](https://python.langchain.
 ## Initial setup
 
 ```bash
-git clone https://github.com/valkai-tech/simple-agent-public.git
+git clone https://github.com/ecks223/simple-agent-public.git
 cd simple-agent-public
 uv sync
 cp .env.example .env
-# Fill in your API key(s) in .env
+# Fill in your API key(s) in .env  (ANTHROPIC_API_KEY is required for the memory strategies)
 ```
 
 ## Running evals
 
-```bash
-uv run pytest evals/ -v
-```
-
-Evals make real LLM calls (not mocked) to verify provider integration end-to-end.
+`uv run pytest evals/ -v` runs everything under `evals/` — the starter's `test_agent.py` plus the memory-strategy harness `test_memory.py`. All evals make real LLM calls (not mocked). See [Running the memory evals](#running-the-memory-evals) below for the memory-strategy comparison specifically.
 
 ## Project structure
 
 ```
 simple-agent/
-├── README.md               # this file — core concepts
+├── README.md                             # this file
 ├── docs/
-│   ├── cli.md              # CLI usage guide
-│   └── fullstack.md        # server + frontend guide
-├── pyproject.toml          # uv project config and dependencies
-├── .env.example            # API key template
+│   ├── cli.md                            # CLI usage guide (starter)
+│   ├── fullstack.md                      # server + frontend guide (starter)
+│   └── memory.md                         # memory strategy design + trade-offs
+├── pyproject.toml                        # uv project config and dependencies
+├── .env.example                          # API key template
 ├── src/
 │   └── agent/
-│       ├── core.py         # agent factory (shared by both approaches)
-│       ├── cli.py          # CLI entry point
-│       └── server.py       # FastAPI server entry point
-├── frontend/               # React chat UI
+│       ├── core.py                       # make_agent(...) factory
+│       ├── cli.py                        # CLI entry (--memory, --user, --department)
+│       ├── server.py                     # FastAPI server entry
+│       └── memory/
+│           ├── base.py                   # MemoryStrategy protocol + BaselineStrategy
+│           ├── per_user.py               # Strategy 1: per-user personal facts
+│           ├── per_user_plus_patterns.py # Strategy 2: + shared team patterns
+│           └── _store.py                 # dict-backed namespace KV
+├── frontend/                             # React chat UI (starter)
 └── evals/
-    └── test_agent.py       # pytest evals
+    ├── test_agent.py                     # starter eval (provider integration)
+    ├── test_memory.py                    # parameterized memory-strategy harness
+    ├── conversations.py                  # scripted multi-turn scenarios
+    ├── _metrics.py                       # per-turn pass/fail accumulator + table
+    ├── conftest.py                       # pytest_sessionfinish hook
+    ├── out/                              # written by the harness at session end
+    └── README.md                         # harness walkthrough
 ```
 
 ---
 
 ## Memory implementation
 
-See also [docs/memory.md](docs/memory.md) for the strategy design + trade-offs and [evals/README.md](evals/README.md) for the harness walkthrough.
+Everything above is the starter repo unchanged. The rest of this file covers the memory layer built on top of it — two cross-conversation memory strategies plus a quantitative evaluation harness that compares them. For deeper reading, [docs/memory.md](docs/memory.md) has the full strategy design + trade-offs and [evals/README.md](evals/README.md) has the harness walkthrough.
 
 ### Why not `langmem` + `InMemoryStore`
 
-The first attempt followed the LangGraph memory docs exactly: [`langmem.create_memory_manager`](https://langchain-ai.github.io/langmem/) for extraction + `langgraph.store.memory.InMemoryStore` with an OpenAI embedding index for semantic retrieval. It worked, but required a second provider credential (`OPENAI_API_KEY`) that wasnt provided, and Anthropic doesn't offer a first-party embedding model (their sanctioned partner, Voyage AI, would also have needed a separate key).
+The first attempt followed the LangGraph memory docs exactly: [`langmem.create_memory_manager`](https://langchain-ai.github.io/langmem/) for extraction + `langgraph.store.memory.InMemoryStore` with an OpenAI embedding index for semantic retrieval. It worked, but required a second provider credential (`OPENAI_API_KEY`) that wasn't available, and Anthropic doesn't offer a first-party embedding model (their sanctioned partner, Voyage AI, would also have needed a separate key).
 
 Rather than add a second provider just to store a handful of facts per user, we swapped to:
 
@@ -95,7 +103,7 @@ Semantic search falls away, but at this scale (single-digit facts per user) the 
 
 ### Tests-first workflow
 
-To make iteration on the memory layer cheap, we wrote the evaluation harness **before** the strategies. [evals/test_memory.py](evals/test_memory.py) is a parameterized pytest suite driven by [evals/conversations.py](evals/conversations.py) — scripted multi-turn scenarios, each turn carrying `expect` / `forbid` substring assertions. The harness accumulates per-turn pass/fail into a matrix keyed by `(strategy, category)` and prints a summary table at session end.
+To make iteration on the memory layer cheap, we wrote the evaluation harness before the strategies. [evals/test_memory.py](evals/test_memory.py) is a parameterized pytest suite driven by [evals/conversations.py](evals/conversations.py) — scripted multi-turn scenarios, each turn carrying `expect` / `forbid` substring assertions. The harness accumulates per-turn pass/fail into a matrix keyed by `(strategy, category)` and prints a summary table at session end.
 
 That let us run the whole suite as a fast feedback loop while building: edit extractor prompt → re-run → see which scenarios moved on the matrix. The baseline (no memory) and both strategies all go through the same harness, so the matrix directly quantifies what memory adds.
 
