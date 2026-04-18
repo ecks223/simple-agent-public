@@ -23,6 +23,8 @@ agent = make_agent()
 class Message(BaseModel):
     role: str
     content: str
+    user: str | None = None
+    department: str | None = None
 
 
 class ChatRequest(BaseModel):
