@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 const API_URL = 'http://localhost:8000'
 
 export default function App() {
+  // In a real deployment these would come from the auth layer (SSO / JWT).
+  // For the demo they're manually-editable so you can switch speakers and
+  // see per-user / per-department scoping without rebuilding.
+  const [userId, setUserId] = useState('web_user')
+  const [department, setDepartment] = useState('default')
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -15,7 +20,10 @@ export default function App() {
   async function sendMessage() {
     if (!input.trim() || loading) return
 
-    const newMessages = [...messages, { role: 'user', content: input.trim() }]
+    const newMessages = [
+      ...messages,
+      { role: 'user', content: input.trim(), user: userId, department },
+    ]
     setMessages(newMessages)
     setInput('')
     setLoading(true)
@@ -42,9 +50,38 @@ export default function App() {
     }
   }
 
+  // Clears the local transcript without touching the server's memory store.
+  // Useful for demoing cross-session recall — the next message starts a
+  // fresh conversation but the agent should still remember prior facts.
+  function newConversation() {
+    setMessages([])
+  }
+
   return (
     <div style={styles.container}>
       <h2 style={styles.title}>Simple Agent Chat</h2>
+
+      <div style={styles.identityRow}>
+        <label style={styles.label}>
+          user
+          <input
+            value={userId}
+            onChange={e => setUserId(e.target.value)}
+            style={styles.identityInput}
+          />
+        </label>
+        <label style={styles.label}>
+          department
+          <input
+            value={department}
+            onChange={e => setDepartment(e.target.value)}
+            style={styles.identityInput}
+          />
+        </label>
+        <button onClick={newConversation} style={styles.newButton}>
+          New conversation
+        </button>
+      </div>
 
       <div style={styles.messageList}>
         {messages.length === 0 && (
@@ -96,6 +133,38 @@ const styles = {
   },
   title: {
     marginBottom: 16,
+  },
+  identityRow: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'flex-end',
+    marginBottom: 12,
+  },
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    fontSize: 12,
+    color: '#555',
+    gap: 2,
+  },
+  identityInput: {
+    padding: '4px 6px',
+    fontFamily: 'monospace',
+    fontSize: 13,
+    border: '1px solid #ccc',
+    borderRadius: 4,
+    width: 140,
+  },
+  newButton: {
+    padding: '4px 12px',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    cursor: 'pointer',
+    border: '1px solid #ccc',
+    borderRadius: 4,
+    background: '#fff',
+    height: 28,
+    marginLeft: 'auto',
   },
   messageList: {
     border: '1px solid #ccc',

@@ -121,7 +121,11 @@ class Message(BaseModel):
     department: str | None = None    # speaker's team      → pattern namespace
 ```
 
-These are treated as **authenticated user metadata** — in a real deployment they'd be populated from whatever auth layer sits in front of the server (SSO claim, JWT, session lookup, directory service), not from anything the end user types. The client never trusts them; the server writes them on the incoming request before the agent sees it. For this take-home we stop short of the auth layer itself and just thread the fields through: the CLI exposes `--user` / `--department` flags plus `/user <name>` and `/dept <name>` switches for multi-user demos, and the harness sets them per-turn in each scenario.
+These are treated as **authenticated user metadata** — in a real deployment they'd be populated from whatever auth layer sits in front of the server (SSO claim, JWT, session lookup, directory service), not from anything the end user types. The client never trusts them; the server writes them on the incoming request before the agent sees it. For this take-home we stop short of the auth layer itself and just thread the fields through all three surfaces:
+
+- **CLI** — `--user` / `--department` flags plus `/user <name>` and `/dept <name>` switches for multi-user demos.
+- **Harness** — each scenario sets them per-turn.
+- **FastAPI server + React frontend** — the frontend exposes editable `user` / `department` text inputs and includes them in every `/chat` request body. The server's memory strategy is picked at startup via `MEMORY_STRATEGY` env var (see [docs/fullstack.md](docs/fullstack.md)).
 
 Note that LangChain's message-level `role` field (`"user"` / `"assistant"` / `"system"`) is unrelated — that's the protocol role. The `user` field we added is the speaker identity. We briefly considered overloading `role` with values like `"user:alice"`, but LangChain's `convert_to_messages` rejects non-standard roles, so a new wire field was the cleanest option.
 
